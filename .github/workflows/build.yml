@@ -1,0 +1,45 @@
+name: Build and test
+
+env: {}
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: gradle/gradle-build-action@v2
+      - name: Compile and test
+        run: ./gradlew test
+      - name: Package
+        run: ./gradlew assemble
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: build/distributions/*
+
+
+  publish:
+    needs: build-and-test
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: build/distributions
+
+      - name: Build image
+        uses: macbre/push-to-ghcr@master
+        with:
+          image_name: ${{ github.repository }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
