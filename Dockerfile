@@ -1,6 +1,6 @@
 FROM eclipse-temurin:17-jdk-focal as build
 # RUN apk update && apk add gcompat binutils
-RUN jlink --strip-debug --no-man-pages --no-header-files --add-modules java.base --output /java
+RUN jlink --strip-debug --no-man-pages --no-header-files --add-modules java.base,java.xml,java.desktop --output /java
 
 FROM ubuntu:focal
 COPY --from=build /java /java
