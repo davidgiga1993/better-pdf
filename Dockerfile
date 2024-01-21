@@ -8,12 +8,13 @@ COPY build/distributions/better-pdf.tar /app/
 
 
 ARG APPLICATION_USER=app
-RUN adduser -u 1000 $APPLICATION_USER && \
-     chown -R $APPLICATION_USER /app && \
-    tar xf /app/better-pdf.tar && \
-    rm /app/*.tar
+RUN useradd -ms /bin/bash $APPLICATION_USER && \
+    chown -R $APPLICATION_USER /app && \
+    cd /app && tar -xf /app/better-pdf.tar && \
+    rm /app/*.tar && \
+    ls -la /app/better-pdf
 
-USER 1000
+USER app
 WORKDIR /app/better-pdf
 ENV JAVA_HOME=/java
 
