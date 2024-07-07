@@ -1,6 +1,7 @@
 package org.davidgiga1993;
 
 import net.sourceforge.argparse4j.ArgumentParsers;
+import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
@@ -14,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileSystems;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,7 +25,6 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 
 public class Main
 {
-	private static final Logger log = LoggerFactory.getLogger(Main.class);
 
 	public static void main(String[] args) throws IOException, InvalidArgument
 	{
@@ -31,6 +33,12 @@ public class Main
 				.defaultHelp(true)
 				.description("PDF merging, splitting and other stuff. Daemon mode allows you to " +
 						"create drop-in folders which automatically convert the pdfs");
+
+		parser.addArgument("--debug")
+				.action(Arguments.storeTrue())
+				.dest("debug")
+				.help("Enables debug mode")
+				.setDefault(false);
 
 		var modeParsers = parser.addSubparsers().help("Working mode");
 		modeParsers.dest("mode");
@@ -70,20 +78,26 @@ public class Main
 			return;
 		}
 
+		System.setProperty("org.slf4j.simpleLogger.logFile", "System.out"); // Ugly
+		var debug = parsedArgs.getBoolean("debug");
+		if (debug)
+		{
+			System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "debug");
+		}
+
 		new Main().handleArgs(parsedArgs);
 	}
 
-
 	private final Pdf pdf = new Pdf();
 	private final FileWatcherCache cache = new FileWatcherCache();
+	private final Logger log = LoggerFactory.getLogger(Main.class);
 
-	public Main()
-	{
-		System.setProperty("org.slf4j.simpleLogger.logFile", "System.out"); // Ugly
-	}
 
 	private void handleArgs(Namespace parsedArgs) throws InvalidArgument, IOException
 	{
+
+		log.debug("Debug logging enabled");
+
 		String mode = parsedArgs.get("mode");
 		if ("duplex-watch".equals(mode))
 		{
@@ -107,7 +121,7 @@ public class Main
 				}
 				catch (InvalidArgument e)
 				{
-					log.error("Could not process: " + e.getMessage());
+					log.error("Could not process: {}", e.getMessage());
 				}
 			});
 
@@ -138,16 +152,27 @@ public class Main
 
 			while (true)
 			{
+				WatchKey key = null;
 				try
 				{
-					var result = watchService.take();
+					key = watchService.take();
+					for (WatchEvent<?> event : key.pollEvents())
+					{
+						log.debug("Event kind:{}, file affected: {}", event.kind(), event.context());
+					}
 					callback.run();
-					result.reset();
 				}
 				catch (InterruptedException e)
 				{
 					// Aborted
 					return;
+				}
+				finally
+				{
+					if (key != null)
+					{
+						key.reset();
+					}
 				}
 			}
 		}
